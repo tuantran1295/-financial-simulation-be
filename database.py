@@ -21,7 +21,7 @@ class Database:
             minconn=1,
             maxconn=10,
             user=os.getenv('PG_USER', 'postgres'),
-            password=os.getenv('PG_PASSWORD', 'postgres'),
+            password=os.getenv('PG_PASSWORD', 'root-1234567890'),
             host=os.getenv('PG_HOST', 'localhost'),
             port=os.getenv('PG_PORT', '5432'),
             database=os.getenv('PG_DATABASE', 'simulation_games')
