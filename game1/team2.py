@@ -1,7 +1,7 @@
 import questionary
 from rich.console import Console
 from rich.table import Table
-from database import Database, get_game1_terms, update_game1_term
+from database.database import Database, get_game1_terms, update_game1_term
 from time import sleep
 import os
 

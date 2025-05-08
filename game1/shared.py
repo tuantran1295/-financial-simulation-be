@@ -1,6 +1,6 @@
 from rich.table import Table
 from rich.console import Console
-from database import get_game1_terms
+from database.database import get_game1_terms
 
 console = Console()
 

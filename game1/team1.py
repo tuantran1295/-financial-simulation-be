@@ -1,6 +1,6 @@
 import questionary
 from rich.console import Console
-from database import Database, get_game1_terms, update_game1_term
+from database.database import Database, get_game1_terms, update_game1_term
 from .shared import calculate_game1_outputs, display_game1_outputs
 
 console = Console()
