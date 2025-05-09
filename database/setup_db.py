@@ -8,7 +8,6 @@ console = Console()
 def create_database():
     """Create the database if it doesn't exist"""
     try:
-        # Connect to default postgres DB
         conn = psycopg2.connect(
             user="postgres",
             password="root-1234567890",
@@ -18,15 +17,14 @@ def create_database():
         conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
         cur = conn.cursor()
 
-        # Check if database exists
         cur.execute("SELECT 1 FROM pg_database WHERE datname='simulation_games'")
         exists = cur.fetchone()
 
         if not exists:
             cur.execute("CREATE DATABASE simulation_games")
-            console.print("[green]✓ Database 'simulation_games' created successfully")
+            console.print("[green]✓ Database created successfully")
         else:
-            console.print("[yellow]Database 'simulation_games' already exists")
+            console.print("[yellow]Database already exists")
 
         cur.close()
         conn.close()
@@ -36,9 +34,8 @@ def create_database():
 
 
 def initialize_tables():
-    """Initialize all required tables with default data"""
+    """Initialize all tables with proper schema for both games"""
     try:
-        # Connect to our database
         conn = psycopg2.connect(
             user="postgres",
             password="root-1234567890",
@@ -58,56 +55,53 @@ def initialize_tables():
             team2_approval BOOLEAN DEFAULT FALSE,
             description TEXT,
             last_updated TIMESTAMP DEFAULT NOW()
-        )
-        """)
+        )""")
 
-        # Insert default terms for Game 1
+        # Insert CRITICAL DEFAULT TERMS for Game 1
         cur.execute("""
         INSERT INTO game1_terms (term, description)
         VALUES 
             ('EBITDA', 'Earnings Before Interest, Taxes, Depreciation, and Amortization'),
             ('Multiple', 'Industry-standard valuation multiplier'),
             ('Factor Score', 'Company-specific adjustment factor (0.5 - 1.5)')
-        ON CONFLICT (term) DO NOTHING
-        """)
+        ON CONFLICT (term) DO UPDATE SET 
+            description = EXCLUDED.description""")
+        console.print("[green]✓ Game 1 terms initialized")
 
         # ===== Game 2 Tables =====
         cur.execute("""
         CREATE TABLE IF NOT EXISTS game2_terms (
             id SERIAL PRIMARY KEY,
-            term VARCHAR(50) UNIQUE NOT NULL,
+            term VARCHAR(50) NOT NULL,
             team1_company1 NUMERIC,
             team1_company2 NUMERIC,
             team1_company3 NUMERIC,
             team2_company1 NUMERIC,
             team2_company2 NUMERIC,
             team2_company3 NUMERIC,
-            last_updated TIMESTAMP DEFAULT NOW()
-        )
-        """)
+            last_updated TIMESTAMP DEFAULT NOW(),
+            UNIQUE(term)
+        )""")
 
-        # Insert default terms for Game 2
         cur.execute("""
         INSERT INTO game2_terms (term)
         VALUES 
-            ('Price'),
-            ('Shares'),
-            ('Investor 1'), 
-            ('Investor 2'),
-            ('Investor 3')
-        ON CONFLICT (term) DO NOTHING
-        """)
+            ('price_company1'), ('price_company2'), ('price_company3'),
+            ('shares_company1'), ('shares_company2'), ('shares_company3'),
+            ('investor1_budget'), ('investor2_budget'), ('investor3_budget')
+        ON CONFLICT (term) DO NOTHING""")
+        console.print("[green]✓ Game 2 terms initialized")
 
-        console.print("[green]✓ Tables initialized successfully with default data")
-
-        # Verify table creation
+        # Create results tables
         cur.execute("""
-        SELECT table_name 
-        FROM information_schema.tables 
-        WHERE table_schema = 'public'
-        """)
-        tables = cur.fetchall()
-        console.print(f"[blue]Existing tables: {', '.join([t[0] for t in tables])}")
+        CREATE TABLE IF NOT EXISTS game2_results (
+            id SERIAL PRIMARY KEY,
+            calculation_time TIMESTAMP DEFAULT NOW(),
+            total_market_value NUMERIC,
+            company1_weight NUMERIC,
+            company2_weight NUMERIC,
+            company3_weight NUMERIC
+        )""")
 
         cur.close()
         conn.close()
@@ -117,7 +111,7 @@ def initialize_tables():
 
 
 def verify_setup():
-    """Verify the database setup was successful"""
+    """Verify both Game 1 and Game 2 setups"""
     try:
         conn = psycopg2.connect(
             user="postgres",
@@ -127,46 +121,67 @@ def verify_setup():
             database="simulation_games"
         )
         cur = conn.cursor()
+        verified = True
 
-        # Check Game 1 terms
-        cur.execute("SELECT COUNT(*) FROM game1_terms")
-        game1_count = cur.fetchone()[0]
-        console.print(f"[blue]Game 1 terms: {game1_count} records")
+        # Verify Game 1
+        cur.execute("SELECT term FROM game1_terms")
+        game1_terms = {row[0] for row in cur.fetchall()}
+        required_game1 = {'EBITDA', 'Multiple', 'Factor Score'}
 
-        # Check Game 2 terms
-        cur.execute("SELECT COUNT(*) FROM game2_terms")
-        game2_count = cur.fetchone()[0]
-        console.print(f"[blue]Game 2 terms: {game2_count} records")
+        if not required_game1.issubset(game1_terms):
+            missing = required_game1 - game1_terms
+            console.print(f"[red]Missing Game 1 terms: {', '.join(missing)}")
+            verified = False
 
-        cur.close()
-        conn.close()
+        # Verify Game 2
+        cur.execute("""
+        SELECT term FROM game2_terms 
+        WHERE term LIKE 'price_%' OR term LIKE 'shares_%'
+        """)
+        game2_terms = {row[0] for row in cur.fetchall()}
+        required_game2 = {
+            'price_company1', 'price_company2', 'price_company3',
+            'shares_company1', 'shares_company2', 'shares_company3'
+        }
 
-        if game1_count >= 3 and game2_count >= 5:
-            console.print("[green]✓ Database verified and ready for simulations")
-            return True
-        else:
-            console.print("[red]Error: Missing default data")
-            return False
+        if not required_game2.issubset(game2_terms):
+            missing = required_game2 - game2_terms
+            console.print(f"[red]Missing Game 2 terms: {', '.join(missing)}")
+            verified = False
+
+        if verified:
+            console.print("[green]✓ Both Game 1 and Game 2 verified successfully")
+        return verified
+
     except Exception as e:
         console.print(f"[red]Verification failed: {e}")
         return False
+    finally:
+        if conn:
+            conn.close()
 
 
 if __name__ == "__main__":
-    console.print("[bold blue]\n=== Simulation Games Database Setup ===")
+    console.print("[bold cyan]\n=== Database Setup ===")
 
-    # Step 1: Create database
-    console.print("\n[bold]1. Checking database...")
-    create_database()
+    try:
+        console.print("\n[bold]1. Database Creation")
+        create_database()
 
-    # Step 2: Initialize tables
-    console.print("\n[bold]2. Initializing tables...")
-    initialize_tables()
+        console.print("\n[bold]2. Table Initialization")
+        initialize_tables()
 
-    # Step 3: Verify setup
-    console.print("\n[bold]3. Verifying setup...")
-    if not verify_setup():
-        console.print("[red]Setup verification failed!")
+        console.print("\n[bold]3. Schema Verification")
+        if verify_setup():
+            console.print("\n[bold green]✓ Setup completed successfully!")
+        else:
+            console.print("\n[bold red]! Setup verification failed")
+            raise RuntimeError("Verification failed")
+
+    except Exception as e:
+        console.print(f"\n[bold red]Fatal error during setup: {e}")
+        console.print("Try resetting the database manually:")
+        console.print("1. psql -U postgres")
+        console.print("2. DROP DATABASE simulation_games;")
+        console.print("3. CREATE DATABASE simulation_games;")
         exit(1)
-
-    console.print("\n[bold green]Setup completed successfully! ")

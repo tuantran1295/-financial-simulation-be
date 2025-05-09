@@ -40,14 +40,15 @@ def calculate_game1_outputs(conn):
 def display_game1_outputs(outputs):
     table = Table(title="Game 1 - Current Outputs")
     table.add_column("Term", style="cyan")
-    table.add_column("Team 1 Status", style="magenta")
-    table.add_column("Team 2 Value", style="green")
+    table.add_column("Team 1 Value", style="green")
+    table.add_column("Team 2 Status", style="magenta")
+
 
     for term, status in outputs['team1'].items():
         table.add_row(
             term,
-            f"[green]{status}" if status == "OK" else f"[yellow]{status}",
-            str(outputs['team2'][term])
+            str(outputs['team2'][term]),
+            f"[green]{status}" if status == "OK" else f"[yellow]{status}"
         )
 
     console.print(table)
